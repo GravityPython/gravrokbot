@@ -1,0 +1,13 @@
+---
+description: This is the project's tech stack
+globs: 
+alwaysApply: false
+---
+
+# Technical stack
+
+- Python for backend
+- html/js for the frontend
+- JSON file for storage or SQLite when database is neede
+- Separate databases for dev, test, and prod
+- Python tests
