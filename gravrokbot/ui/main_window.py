@@ -48,17 +48,28 @@ class MainWindow:
         # Track selected action
         self.selected_action = None
         
-        # Start cooldown update timer
-        self.root.after(1000, self.update_cooldowns)  # Update every second
+        # Start cooldown update timer using refresh rate from settings
+        refresh_rate = self.settings["runner"]["refresh_rate_seconds"] * 1000  # Convert to milliseconds
+        self.root.after(refresh_rate, self.update_cooldowns)
         
     def load_default_settings(self):
-        """Load default settings from JSON file"""
+        """Load settings from file, falling back to defaults if needed"""
         try:
-            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "default_settings.json")
-            with open(config_path, 'r') as f:
+            # First try to load from settings.json
+            settings_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "settings.json")
+            if os.path.exists(settings_path):
+                with open(settings_path, 'r') as f:
+                    self.settings = json.load(f)
+                    return
+                    
+            # If settings.json doesn't exist, load from default_settings.json
+            default_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "default_settings.json")
+            with open(default_path, 'r') as f:
                 self.settings = json.load(f)
+                
         except Exception as e:
-            self.logger.error(f"Error loading default settings: {e}")
+            self.logger.error(f"Error loading settings: {e}")
+            # Fallback to hardcoded defaults if both files fail
             self.settings = {
                 "runner": {
                     "refresh_rate_seconds": 60,
@@ -71,6 +82,7 @@ class MainWindow:
                     "coffee_break_chance": 0.05,
                     "min_break_interval_minutes": 120,
                     "character_switch": {
+                        "enabled": True,
                         "min_seconds": 1800,
                         "max_seconds": 3600
                     }
@@ -109,6 +121,7 @@ class MainWindow:
     def update_cooldowns(self):
         """Update cooldown timers and UI"""
         current_time = datetime.now()
+        updated = False
         
         for action_key, state in self.cooldown_states.items():
             if state["is_active"] and state["end_time"]:
@@ -118,14 +131,44 @@ class MainWindow:
                     state["start_time"] = None
                     state["end_time"] = None
                     self.save_cooldown_states()
+                    updated = True
         
         # Update UI if config tab is showing cooldowns
         if self.selected_action:
-            self.update_config_tab()
+            self.update_cooldown_status()
             
-        # Schedule next update
-        self.root.after(1000, self.update_cooldowns)
+        # Schedule next update using refresh rate from settings
+        refresh_rate = self.settings["runner"]["refresh_rate_seconds"] * 1000  # Convert to milliseconds
+        self.root.after(refresh_rate, self.update_cooldowns)
         
+    def update_cooldown_status(self):
+        """Update only the cooldown status text without recreating the entire config tab"""
+        if not self.selected_action:
+            return
+            
+        action_key = self.selected_action.lower().replace(" ", "_")
+        status_widget = self.config_widgets.get(f"{action_key}_status")
+        if not status_widget:
+            return
+            
+        minutes, seconds = self.get_cooldown_remaining(action_key)
+        if minutes > 0 or seconds > 0:
+            status_text = f"Time remaining: {minutes}m {seconds}s"
+            status_style = "warning"
+        else:
+            status_text = "Ready"
+            status_style = "success"
+            
+        status_widget.configure(text=status_text, bootstyle=status_style)
+        
+        # Update reset button visibility
+        reset_button = self.config_widgets.get(f"{action_key}_reset")
+        if reset_button:
+            if minutes > 0 or seconds > 0:
+                reset_button.pack(side=RIGHT)
+            else:
+                reset_button.pack_forget()
+                
     def start_cooldown(self, action_key):
         """Start cooldown for an action"""
         current_time = datetime.now()
@@ -667,7 +710,14 @@ class MainWindow:
                 padding=(0, 0, 10, 0)
             ).pack(side=LEFT)
             
-            cooldown_entry = ttk.Entry(duration_frame, width=10)
+            # Create and configure the entry widget with validation
+            vcmd = (self.root.register(self.validate_number), '%P')
+            cooldown_entry = ttk.Entry(
+                duration_frame,
+                width=10,
+                validate='key',
+                validatecommand=vcmd
+            )
             cooldown_entry.insert(0, str(action_config["cooldown_minutes"]))
             cooldown_entry.pack(side=LEFT)
             
@@ -678,6 +728,12 @@ class MainWindow:
             status_frame = ttk.Frame(cooldown_frame)
             status_frame.pack(fill=X, pady=5)
             
+            ttk.Label(
+                status_frame,
+                text="Status:",
+                padding=(0, 0, 10, 0)
+            ).pack(side=LEFT)
+            
             minutes, seconds = self.get_cooldown_remaining(action_key)
             if minutes > 0 or seconds > 0:
                 status_text = f"Time remaining: {minutes}m {seconds}s"
@@ -685,27 +741,30 @@ class MainWindow:
             else:
                 status_text = "Ready"
                 status_style = "success"
-                
-            ttk.Label(
-                status_frame,
-                text="Status:",
-                padding=(0, 0, 10, 0)
-            ).pack(side=LEFT)
             
-            ttk.Label(
+            status_label = ttk.Label(
                 status_frame,
                 text=status_text,
                 bootstyle=status_style
-            ).pack(side=LEFT)
+            )
+            status_label.pack(side=LEFT)
+            
+            # Store status label reference
+            self.config_widgets[f"{action_key}_status"] = status_label
             
             # Reset button
+            reset_button = ttk.Button(
+                status_frame,
+                text="Reset Cooldown",
+                bootstyle="danger",
+                command=lambda: self.reset_cooldown(action_key)
+            )
+            
+            # Store reset button reference
+            self.config_widgets[f"{action_key}_reset"] = reset_button
+            
             if minutes > 0 or seconds > 0:
-                ttk.Button(
-                    status_frame,
-                    text="Reset Cooldown",
-                    bootstyle="danger",
-                    command=lambda: self.reset_cooldown(action_key)
-                ).pack(side=RIGHT)
+                reset_button.pack(side=RIGHT)
             
             # Add save button
             ttk.Button(
@@ -738,6 +797,16 @@ class MainWindow:
             
         except Exception as e:
             self.add_log(f"Error saving action configuration: {str(e)}")
+        
+    def validate_number(self, value):
+        """Validate that the input is a positive number or empty"""
+        if value == "":
+            return True
+        try:
+            num = int(value)
+            return num >= 0
+        except ValueError:
+            return False
         
     def run(self):
         """Start the main event loop"""
