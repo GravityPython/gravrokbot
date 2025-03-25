@@ -9,6 +9,7 @@ A bot for automating actions in "Rise of Kingdoms" game with human-like interact
 - Activity logging and monitoring
 - Easy to extend with new actions
 - Built-in delay system for realistic timing between actions
+- Predefined delay profiles for common actions
 - Support for multiple automated tasks:
   - Gather resources
   - Collect city resources
@@ -59,6 +60,45 @@ All settings are stored in `gravrokbot/config/settings.json` and can be modified
 - Runner settings: refresh rate, night sleep, coffee breaks
 - Action settings: cooldown, retries, wait times
 - Image paths for game element detection
+- Delay profiles for customizing action timing
+
+### Delay Profiles
+
+Delay profiles define sets of timing parameters that can be reused across different actions:
+
+```json
+"delay_profiles": {
+  "slow_game": {
+    "pre_delay_min": 1.0,
+    "pre_delay_max": 2.0,
+    "post_delay_min": 1.5,
+    "post_delay_max": 3.0
+  },
+  "fast_game": {
+    "pre_delay_min": 0.2,
+    "pre_delay_max": 0.4,
+    "post_delay_min": 0.3,
+    "post_delay_max": 0.6
+  }
+}
+```
+
+You can define global profiles at the root level and action-specific profiles within each action:
+
+```json
+"actions": {
+  "gather_resources": {
+    "delay_profiles": {
+      "resource_search": {
+        "pre_delay_min": 0.5,
+        "pre_delay_max": 1.0,
+        "post_delay_min": 1.0, 
+        "post_delay_max": 2.0
+      }
+    }
+  }
+}
+```
 
 ## How to Use
 
@@ -80,22 +120,52 @@ GravRokBot is designed to be easily extended with new game actions. To create a 
 
 ### Using the Delay System
 
-The bot has a built-in delay system to create realistic timing between actions. Delays can be added directly in the transition definition:
+The bot has a built-in delay system to create realistic timing between actions. There are three ways to add delays:
+
+#### 1. Using Predefined Profiles
 
 ```python
 def setup_transitions(self):
-    """Setup your action's transitions with delays"""
     self.add_transition_with_delays(
         'find_button', 'starting', 'detecting',
-        pre_delay_min=0.5, pre_delay_max=1.0,  # Delay before executing
-        post_delay_min=0.8, post_delay_max=1.2,  # Delay after executing
+        profile='normal',  # Use predefined 'normal' profile
         after='on_find_button'
     )
-    
-    # Additional transitions...
 ```
 
-This creates randomized delays both before and after each step to make the bot's actions appear more human-like and account for game execution delays.
+#### 2. Using Custom Delay Values
+
+```python
+def setup_transitions(self):
+    self.add_transition_with_delays(
+        'find_button', 'starting', 'detecting',
+        pre_delay_min=0.5, pre_delay_max=1.0,  # Custom pre-execution delay
+        post_delay_min=0.8, post_delay_max=1.2,  # Custom post-execution delay
+        after='on_find_button'
+    )
+```
+
+#### 3. Using Profile with Overrides
+
+```python
+def setup_transitions(self):
+    self.add_transition_with_delays(
+        'find_button', 'starting', 'detecting',
+        profile='normal',  # Use the base profile
+        post_delay_min=2.0, post_delay_max=3.0,  # Override just the post-delay
+        after='on_find_button'
+    )
+```
+
+### Built-in Delay Profiles
+
+The system comes with several built-in profiles:
+
+- `quick`: Short delays for simple actions (0.2-0.5s pre, 0.3-0.6s post)
+- `normal`: Standard delays for most actions (0.5-1.0s pre, 0.8-1.2s post)
+- `verification`: Delays for verification steps (0.5-1.0s pre, 0.2-0.4s post)
+- `long_wait`: Longer post-delays for actions that need time (0.3-0.6s pre, 2.0-3.0s post)
+- `menu_navigation`: Delays for menu navigation (0.3-0.7s pre, 1.0-1.5s post)
 
 ### Example Action Template
 
@@ -111,35 +181,32 @@ class MyNewAction(ActionWorkflow):
     def setup_transitions(self):
         self.add_transition_with_delays(
             'first_step', 'starting', 'detecting', 
-            pre_delay_min=0.5, pre_delay_max=1.0,
-            post_delay_min=0.8, post_delay_max=1.2,
+            profile='normal',
             after='on_first_step'
         )
         
         self.add_transition_with_delays(
             'second_step', 'detecting', 'clicking',
-            pre_delay_min=0.3, pre_delay_max=0.6,
-            post_delay_min=1.0, post_delay_max=1.5, 
+            profile='menu_navigation',
             after='on_second_step'
         )
         
         self.add_transition_with_delays(
             'check_result', 'clicking', 'verifying',
-            pre_delay_min=1.0, pre_delay_max=2.0,
-            post_delay_min=0.5, post_delay_max=1.0,  
+            profile='long_wait',
             after='on_check_result'
         )
         
         self.add_transition_with_delays(
             'finish', 'verifying', 'succeeded', 
-            pre_delay_min=0.5, pre_delay_max=1.0,
+            profile='verification',
             conditions=['is_successful'], 
             after='on_success'
         )
         
         self.add_transition_with_delays(
             'finish', 'verifying', 'failed', 
-            pre_delay_min=0.5, pre_delay_max=1.0,
+            profile='verification',
             unless=['is_successful'], 
             after='on_failure'
         )
