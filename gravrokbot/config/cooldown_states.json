@@ -1,0 +1,27 @@
+{
+    "gather_resources": {
+        "is_active": false,
+        "start_time": null,
+        "end_time": null
+    },
+    "collect_city_resources": {
+        "is_active": false,
+        "start_time": null,
+        "end_time": null
+    },
+    "change_character": {
+        "is_active": false,
+        "start_time": null,
+        "end_time": null
+    },
+    "start_game": {
+        "is_active": false,
+        "start_time": null,
+        "end_time": null
+    },
+    "close_game": {
+        "is_active": false,
+        "start_time": null,
+        "end_time": null
+    }
+} 

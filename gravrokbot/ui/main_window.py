@@ -5,7 +5,7 @@ Main window UI for GravRokBot using ttkbootstrap.
 import tkinter as tk
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
-from datetime import datetime
+from datetime import datetime, timedelta
 import sys
 import os
 import logging
@@ -26,6 +26,9 @@ class MainWindow:
         # Load default settings
         self.load_default_settings()
         
+        # Load cooldown states
+        self.load_cooldown_states()
+        
         # Create main container
         self.main_container = ttk.Frame(self.root)
         self.main_container.pack(fill=BOTH, expand=True, padx=5, pady=5)
@@ -41,6 +44,12 @@ class MainWindow:
         
         # Initialize bot status
         self.running = False
+        
+        # Track selected action
+        self.selected_action = None
+        
+        # Start cooldown update timer
+        self.root.after(1000, self.update_cooldowns)  # Update every second
         
     def load_default_settings(self):
         """Load default settings from JSON file"""
@@ -67,6 +76,94 @@ class MainWindow:
                     }
                 }
             }
+        
+    def load_cooldown_states(self):
+        """Load cooldown states from JSON file"""
+        try:
+            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "cooldown_states.json")
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    self.cooldown_states = json.load(f)
+            else:
+                self.cooldown_states = {}
+                for action in ["gather_resources", "collect_city_resources", "change_character", "start_game", "close_game"]:
+                    self.cooldown_states[action] = {
+                        "is_active": False,
+                        "start_time": None,
+                        "end_time": None
+                    }
+                self.save_cooldown_states()
+        except Exception as e:
+            self.logger.error(f"Error loading cooldown states: {e}")
+            self.cooldown_states = {}
+        
+    def save_cooldown_states(self):
+        """Save cooldown states to JSON file"""
+        try:
+            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "cooldown_states.json")
+            with open(config_path, 'w') as f:
+                json.dump(self.cooldown_states, f, indent=4)
+        except Exception as e:
+            self.logger.error(f"Error saving cooldown states: {e}")
+        
+    def update_cooldowns(self):
+        """Update cooldown timers and UI"""
+        current_time = datetime.now()
+        
+        for action_key, state in self.cooldown_states.items():
+            if state["is_active"] and state["end_time"]:
+                end_time = datetime.fromisoformat(state["end_time"])
+                if current_time >= end_time:
+                    state["is_active"] = False
+                    state["start_time"] = None
+                    state["end_time"] = None
+                    self.save_cooldown_states()
+        
+        # Update UI if config tab is showing cooldowns
+        if self.selected_action:
+            self.update_config_tab()
+            
+        # Schedule next update
+        self.root.after(1000, self.update_cooldowns)
+        
+    def start_cooldown(self, action_key):
+        """Start cooldown for an action"""
+        current_time = datetime.now()
+        cooldown_minutes = self.settings["actions"][action_key]["cooldown_minutes"]
+        end_time = current_time + timedelta(minutes=cooldown_minutes)
+        
+        self.cooldown_states[action_key] = {
+            "is_active": True,
+            "start_time": current_time.isoformat(),
+            "end_time": end_time.isoformat()
+        }
+        self.save_cooldown_states()
+        
+    def reset_cooldown(self, action_key):
+        """Reset cooldown for an action"""
+        self.cooldown_states[action_key] = {
+            "is_active": False,
+            "start_time": None,
+            "end_time": None
+        }
+        self.save_cooldown_states()
+        self.update_config_tab()
+        
+    def get_cooldown_remaining(self, action_key):
+        """Get remaining cooldown time in minutes and seconds"""
+        state = self.cooldown_states.get(action_key)
+        if not state or not state["is_active"] or not state["end_time"]:
+            return 0, 0
+            
+        end_time = datetime.fromisoformat(state["end_time"])
+        remaining = end_time - datetime.now()
+        
+        if remaining.total_seconds() <= 0:
+            return 0, 0
+            
+        minutes = int(remaining.total_seconds() // 60)
+        seconds = int(remaining.total_seconds() % 60)
+        return minutes, seconds
         
     def create_header(self):
         """Create the header with instance info and resource counters"""
@@ -152,6 +249,7 @@ class MainWindow:
         
         # List of actual actions from our actions folder
         self.action_vars = {}  # Store action variables
+        self.action_buttons = {}  # Store action buttons
         actions = [
             "Gather Resources",
             "Collect City Resources",
@@ -168,12 +266,23 @@ class MainWindow:
             var = tk.BooleanVar(value=True)
             self.action_vars[action] = var
             
+            # Checkbox on the left
             ttk.Checkbutton(
                 action_frame,
                 text=action,
                 bootstyle="round-toggle",
                 variable=var
             ).pack(side=LEFT)
+            
+            # Create button for selection
+            btn = ttk.Button(
+                action_frame,
+                text="Configure",
+                bootstyle="outline",
+                command=lambda a=action: self.select_action(a)
+            )
+            btn.pack(side=RIGHT, padx=5)
+            self.action_buttons[action] = btn
             
             ttk.Label(
                 action_frame,
@@ -191,12 +300,12 @@ class MainWindow:
         right_panel.pack(side=RIGHT, fill=BOTH, expand=True)
         
         # Tabs for Activity Log and Config
-        tabs = ttk.Notebook(right_panel)
-        tabs.pack(fill=BOTH, expand=True)
+        self.right_tabs = ttk.Notebook(right_panel)
+        self.right_tabs.pack(fill=BOTH, expand=True)
         
         # Activity Log tab
-        log_frame = ttk.Frame(tabs)
-        tabs.add(log_frame, text="ACTIVITY LOG")
+        log_frame = ttk.Frame(self.right_tabs)
+        self.right_tabs.add(log_frame, text="ACTIVITY LOG")
         
         self.log_text = tk.Text(
             log_frame,
@@ -208,8 +317,23 @@ class MainWindow:
         self.log_text.pack(fill=BOTH, expand=True)
         
         # Config tab
-        config_frame = ttk.Frame(tabs)
-        tabs.add(config_frame, text="CONFIG")
+        self.config_frame = ttk.Frame(self.right_tabs)
+        self.right_tabs.add(self.config_frame, text="CONFIG")
+        
+        # Add default message
+        self.config_message = ttk.Label(
+            self.config_frame,
+            text="Select an action to view its configuration",
+            bootstyle="secondary",
+            padding=20
+        )
+        self.config_message.pack(expand=True)
+        
+        # Create config widgets container (hidden by default)
+        self.config_container = ttk.Frame(self.config_frame)
+        
+        # Store config widgets
+        self.config_widgets = {}
         
     def create_misc_tab(self, parent):
         """Create the MISC tab with runner settings"""
@@ -492,6 +616,128 @@ class MainWindow:
         self.char_switch_max.insert(0, str(self.settings["runner"]["character_switch"]["max_seconds"]))
         
         self.add_log("Settings reset to default values")
+        
+    def select_action(self, action_name):
+        """Handle action selection"""
+        # Reset all buttons to outline style
+        for btn in self.action_buttons.values():
+            btn.configure(bootstyle="outline")
+            
+        # Highlight selected button
+        self.action_buttons[action_name].configure(bootstyle="info-outline")
+        
+        # Update selected action
+        self.selected_action = action_name
+        
+        # Update config tab
+        self.update_config_tab()
+        
+    def update_config_tab(self):
+        """Update the config tab based on selected action"""
+        # Clear existing widgets
+        for widget in self.config_container.winfo_children():
+            widget.destroy()
+            
+        if not self.selected_action:
+            self.config_message.pack(expand=True)
+            self.config_container.pack_forget()
+            return
+            
+        # Hide default message and show container
+        self.config_message.pack_forget()
+        self.config_container.pack(fill=BOTH, expand=True, padx=10, pady=10)
+        
+        # Convert action name to settings key
+        action_key = self.selected_action.lower().replace(" ", "_")
+        
+        if action_key in self.settings["actions"]:
+            action_config = self.settings["actions"][action_key]
+            
+            # Create cooldown settings frame
+            cooldown_frame = ttk.LabelFrame(self.config_container, text="Cooldown Settings", padding=10)
+            cooldown_frame.pack(fill=X, pady=5)
+            
+            # Cooldown duration
+            duration_frame = ttk.Frame(cooldown_frame)
+            duration_frame.pack(fill=X, pady=5)
+            
+            ttk.Label(
+                duration_frame,
+                text="Cooldown (minutes):",
+                padding=(0, 0, 10, 0)
+            ).pack(side=LEFT)
+            
+            cooldown_entry = ttk.Entry(duration_frame, width=10)
+            cooldown_entry.insert(0, str(action_config["cooldown_minutes"]))
+            cooldown_entry.pack(side=LEFT)
+            
+            # Store widget reference
+            self.config_widgets[f"{action_key}_cooldown"] = cooldown_entry
+            
+            # Cooldown status
+            status_frame = ttk.Frame(cooldown_frame)
+            status_frame.pack(fill=X, pady=5)
+            
+            minutes, seconds = self.get_cooldown_remaining(action_key)
+            if minutes > 0 or seconds > 0:
+                status_text = f"Time remaining: {minutes}m {seconds}s"
+                status_style = "warning"
+            else:
+                status_text = "Ready"
+                status_style = "success"
+                
+            ttk.Label(
+                status_frame,
+                text="Status:",
+                padding=(0, 0, 10, 0)
+            ).pack(side=LEFT)
+            
+            ttk.Label(
+                status_frame,
+                text=status_text,
+                bootstyle=status_style
+            ).pack(side=LEFT)
+            
+            # Reset button
+            if minutes > 0 or seconds > 0:
+                ttk.Button(
+                    status_frame,
+                    text="Reset Cooldown",
+                    bootstyle="danger",
+                    command=lambda: self.reset_cooldown(action_key)
+                ).pack(side=RIGHT)
+            
+            # Add save button
+            ttk.Button(
+                self.config_container,
+                text="Save Configuration",
+                bootstyle="success",
+                command=self.save_action_config,
+                padding=10
+            ).pack(side=BOTTOM, pady=20)
+            
+    def save_action_config(self):
+        """Save the action-specific configuration"""
+        if not self.selected_action:
+            return
+            
+        action_key = self.selected_action.lower().replace(" ", "_")
+        
+        try:
+            # Update settings with new values
+            cooldown_widget = self.config_widgets.get(f"{action_key}_cooldown")
+            if cooldown_widget:
+                self.settings["actions"][action_key]["cooldown_minutes"] = int(cooldown_widget.get())
+                
+            # Save to file
+            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "settings.json")
+            with open(config_path, 'w') as f:
+                json.dump(self.settings, f, indent=4)
+                
+            self.add_log(f"Configuration saved for {self.selected_action}")
+            
+        except Exception as e:
+            self.add_log(f"Error saving action configuration: {str(e)}")
         
     def run(self):
         """Start the main event loop"""
