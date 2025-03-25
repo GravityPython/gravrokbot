@@ -1,0 +1,115 @@
+{
+  "runner": {
+    "refresh_rate_seconds": 60,
+    "continuous_running": true,
+    "night_sleep_enabled": true,
+    "night_sleep_start": "23:00",
+    "night_sleep_end": "07:00",
+    "coffee_break_min_minutes": 10,
+    "coffee_break_max_minutes": 30,
+    "coffee_break_chance": 0.05,
+    "min_break_interval_minutes": 120,
+    "character_switch": {
+      "enabled": true,
+      "min_seconds": 1800,
+      "max_seconds": 3600
+    }
+  },
+  "screen": {
+    "resolution": {
+      "width": 1600,
+      "height": 900
+    },
+    "input_delay": 0.1,
+    "click_randomize_range": 5,
+    "move_duration_min": 0.3,
+    "move_duration_max": 0.7,
+    "default_confidence": 0.8
+  },
+  "delay_profiles": {
+    "slow_game": {
+      "pre_delay_min": 1.0,
+      "pre_delay_max": 2.0,
+      "post_delay_min": 1.5,
+      "post_delay_max": 3.0
+    },
+    "fast_game": {
+      "pre_delay_min": 0.2,
+      "pre_delay_max": 0.4,
+      "post_delay_min": 0.3,
+      "post_delay_max": 0.6
+    },
+    "network_delay": {
+      "pre_delay_min": 0.5,
+      "pre_delay_max": 1.0,
+      "post_delay_min": 3.0,
+      "post_delay_max": 5.0
+    }
+  },
+  "actions": {
+    "gather_resources": {
+      "enabled": true,
+      "cooldown_minutes": 60,
+      "max_retries": 3,
+      "default_wait_time": 1.5,
+      "images": {
+        "gather_button": "assets/images/gather_button.png",
+        "resource_icon": "assets/images/resource_icon.png",
+        "march_button": "assets/images/march_button.png",
+        "confirmation": "assets/images/gather_confirmation.png"
+      }
+    },
+    "collect_city_resources": {
+      "enabled": true,
+      "cooldown_minutes": 30,
+      "max_retries": 3,
+      "default_wait_time": 1.0,
+      "images": {
+        "city_view": "assets/images/city_view.png",
+        "resource_buildings": [
+          "assets/images/farm.png",
+          "assets/images/lumber_camp.png",
+          "assets/images/quarry.png",
+          "assets/images/gold_mine.png"
+        ],
+        "collect_all": "assets/images/collect_all.png",
+        "confirmation": "assets/images/collect_confirmation.png"
+      }
+    },
+    "change_character": {
+      "enabled": true,
+      "cooldown_minutes": 240,
+      "max_retries": 3,
+      "default_wait_time": 2.0,
+      "images": {
+        "settings_button": "assets/images/settings_button.png",
+        "character_button": "assets/images/character_button.png",
+        "switch_button": "assets/images/switch_button.png",
+        "confirmation": "assets/images/switch_confirmation.png"
+      }
+    },
+    "close_game": {
+      "enabled": true,
+      "cooldown_minutes": 1440,
+      "max_retries": 2,
+      "default_wait_time": 1.0,
+      "images": {
+        "settings_button": "assets/images/settings_button.png",
+        "exit_button": "assets/images/exit_button.png",
+        "confirmation": "assets/images/exit_confirmation.png"
+      }
+    },
+    "start_game": {
+      "enabled": true,
+      "cooldown_minutes": 1440,
+      "max_retries": 5,
+      "default_wait_time": 3.0,
+      "game_path": "C:\\Program Files\\Rise of Kingdoms\\launcher.exe",
+      "images": {
+        "game_icon": "assets/images/game_icon.png",
+        "start_button": "assets/images/start_button.png",
+        "login_button": "assets/images/login_button.png"
+      }
+    }
+  }
+} 
