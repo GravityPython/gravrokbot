@@ -61,7 +61,7 @@
         },
         "collect_city_resources": {
             "enabled": true,
-            "cooldown_minutes": 30,
+            "cooldown_minutes": 33,
             "max_retries": 3,
             "default_wait_time": 1.0,
             "images": {
