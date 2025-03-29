@@ -63,18 +63,28 @@ class MainWindow:
     def load_default_settings(self):
         """Load settings from file, falling back to defaults if needed"""
         try:
-            # First try to load from settings.json
-            settings_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "settings.json")
-            if os.path.exists(settings_path):
-                with open(settings_path, 'r') as f:
-                    self.settings = json.load(f)
-                    return
-                    
-            # If settings.json doesn't exist, load from default_settings.json
+            # First load default settings
             default_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "default_settings.json")
             with open(default_path, 'r') as f:
                 self.settings = json.load(f)
                 
+            # Then try to load and merge user settings
+            settings_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "settings.json")
+            if os.path.exists(settings_path):
+                with open(settings_path, 'r') as f:
+                    user_settings = json.load(f)
+                    
+                # Recursive merge function
+                def merge_dicts(base, override):
+                    for key, value in override.items():
+                        if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+                            merge_dicts(base[key], value)
+                        else:
+                            base[key] = value
+                            
+                # Merge user settings into default settings
+                merge_dicts(self.settings, user_settings)
+                    
         except Exception as e:
             self.logger.error(f"Error loading settings: {e}")
             # Fallback to hardcoded defaults if both files fail
@@ -106,7 +116,16 @@ class MainWindow:
                     self.cooldown_states = json.load(f)
             else:
                 self.cooldown_states = {}
-                for action in ["gather_resources", "collect_city_resources", "change_character", "start_game", "close_game"]:
+                for action in [
+                    "gather_resources", 
+                    "collect_city_resources", 
+                    "material_production",
+                    "open_mails",
+                    "claim_daily_vip_gifts",
+                    "change_character", 
+                    "start_game", 
+                    "close_game"
+                ]:
                     self.cooldown_states[action] = {
                         "is_active": False,
                         "start_time": None,
@@ -324,6 +343,9 @@ class MainWindow:
         actions = [
             "Gather Resources",
             "Collect City Resources",
+            "Material Production",
+            "Open Mails",
+            "Claim Daily VIP Gifts",
             "Change Character",
             "Start Game",
             "Close Game"
