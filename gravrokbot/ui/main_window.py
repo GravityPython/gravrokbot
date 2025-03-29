@@ -13,6 +13,14 @@ import json
 
 class MainWindow:
     def __init__(self):
+        # Define status types and their styles
+        self.ACTION_STATUSES = {
+            "N/A": "secondary-inverse",  # Gray background
+            "Waiting": "warning-inverse",  # Orange background
+            "Working": "info-inverse",    # Blue background
+            "Done": "success-inverse"     # Green background
+        }
+        
         self.root = ttk.Window(
             title="Rise of Kingdoms Bot 1.0.0",
             themename="darkly",
@@ -225,9 +233,27 @@ class MainWindow:
         )
         instance_menu.pack(side=LEFT)
         
-        # Control buttons
+        # Character name display (center-left)
+        character_frame = ttk.Frame(header)
+        character_frame.pack(side=LEFT, padx=20)
+        
+        ttk.Label(
+            character_frame,
+            text="Character:",
+            bootstyle="secondary"
+        ).pack(side=LEFT)
+        
+        self.character_name = ttk.Label(
+            character_frame,
+            text="Not Selected",
+            bootstyle="info",
+            padding=(5, 0)
+        )
+        self.character_name.pack(side=LEFT)
+        
+        # Control buttons (center)
         control_frame = ttk.Frame(header)
-        control_frame.pack(side=LEFT, padx=10)
+        control_frame.pack(side=LEFT, padx=50)  # Increased padding to move buttons right
         
         self.start_button = ttk.Button(
             control_frame,
@@ -293,6 +319,8 @@ class MainWindow:
         # List of actual actions from our actions folder
         self.action_vars = {}  # Store action variables
         self.action_buttons = {}  # Store action buttons
+        self.action_status_labels = {}  # Store status labels
+        
         actions = [
             "Gather Resources",
             "Collect City Resources",
@@ -327,11 +355,15 @@ class MainWindow:
             btn.pack(side=RIGHT, padx=5)
             self.action_buttons[action] = btn
             
-            ttk.Label(
+            # Create status label with default "N/A" status
+            status_label = ttk.Label(
                 action_frame,
-                text="Waiting",
-                bootstyle="secondary"
-            ).pack(side=RIGHT)
+                text="N/A",
+                bootstyle=self.ACTION_STATUSES["N/A"],
+                padding=(5, 2)  # Add some padding to make the background more visible
+            )
+            status_label.pack(side=RIGHT, padx=5)
+            self.action_status_labels[action] = status_label
             
         # Misc tab - create and add
         misc_frame = self.create_misc_tab(tabs)
@@ -576,6 +608,13 @@ class MainWindow:
         self.stop_button.configure(state="normal")
         self.add_log("Bot started")
         
+        # Set all enabled actions to "Waiting"
+        for action, var in self.action_vars.items():
+            if var.get():  # If action is checked/enabled
+                self.update_action_status(action, "Waiting")
+            else:
+                self.update_action_status(action, "N/A")
+        
     def stop_bot(self):
         """Stop the bot"""
         self.running = False
@@ -583,6 +622,10 @@ class MainWindow:
         self.start_button.configure(state="normal")
         self.stop_button.configure(state="disabled")
         self.add_log("Bot stopped")
+        
+        # Reset all action statuses to "N/A"
+        for action in self.action_status_labels:
+            self.update_action_status(action, "N/A")
         
     def save_settings(self):
         """Save current settings to file"""
@@ -807,6 +850,23 @@ class MainWindow:
             return num >= 0
         except ValueError:
             return False
+        
+    def update_character_name(self, name):
+        """Update the character name display"""
+        self.character_name.configure(text=name)
+        self.add_log(f"Character switched to: {name}")
+        
+    def update_action_status(self, action, status):
+        """Update the status of an action with the appropriate color"""
+        if action not in self.action_status_labels or status not in self.ACTION_STATUSES:
+            return
+            
+        status_label = self.action_status_labels[action]
+        bootstyle = self.ACTION_STATUSES[status]
+        status_label.configure(text=status, bootstyle=bootstyle)
+        
+        # Log the status change
+        self.add_log(f"Action '{action}' status changed to: {status}")
         
     def run(self):
         """Start the main event loop"""
