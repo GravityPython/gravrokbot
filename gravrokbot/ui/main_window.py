@@ -31,8 +31,15 @@ class MainWindow:
         # Configure logging
         self.logger = logging.getLogger('gravrokbot')
         
+        # Initialize character settings
+        self.character_settings = {}
+        self.current_character = None
+        
         # Load default settings
         self.load_default_settings()
+        
+        # Load character settings
+        self.load_character_settings()
         
         # Load cooldown states
         self.load_cooldown_states()
@@ -55,6 +62,9 @@ class MainWindow:
         
         # Track selected action
         self.selected_action = None
+        
+        # Register cleanup handler
+        self.root.protocol("WM_DELETE_WINDOW", self.cleanup_and_exit)
         
         # Start cooldown update timer using refresh rate from settings
         refresh_rate = self.settings["runner"]["refresh_rate_seconds"] * 1000  # Convert to milliseconds
@@ -107,6 +117,103 @@ class MainWindow:
                 }
             }
         
+    def load_character_settings(self):
+        """Load character-specific settings"""
+        try:
+            path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "character_settings.json")
+            if os.path.exists(path):
+                with open(path, 'r') as f:
+                    self.character_settings = json.load(f)
+                    
+                # Validate current character
+                self.current_character = self.character_settings.get("current_character")
+                if self.current_character not in self.character_settings.get("characters", {}):
+                    # If current character is invalid, use the first available character
+                    available_characters = list(self.character_settings.get("characters", {}).keys())
+                    self.current_character = available_characters[0] if available_characters else None
+                    self.character_settings["current_character"] = self.current_character
+                    
+                # Apply settings for current character
+                self.apply_character_settings()
+            else:
+                # Create default settings for first character
+                self.initialize_character_settings()
+        except Exception as e:
+            self.logger.error(f"Error loading character settings: {e}")
+            # If there's an error, initialize with defaults
+            self.initialize_character_settings()
+
+    def initialize_character_settings(self):
+        """Create default settings for first character"""
+        self.character_settings = {
+            "characters": {
+                "Character1": {
+                    "actions": {}
+                }
+            },
+            "current_character": "Character1"
+        }
+        
+        # Copy default action settings
+        for action_key, action_config in self.settings["actions"].items():
+            self.character_settings["characters"]["Character1"]["actions"][action_key] = {
+                "enabled": False,  # Initialize actions as disabled by default
+                "cooldown_minutes": action_config["cooldown_minutes"]
+            }
+            
+        self.current_character = "Character1"
+        self.save_character_settings()
+        
+        # Apply the settings
+        self.apply_character_settings()
+
+    def save_character_settings(self):
+        """Save character-specific settings"""
+        try:
+            path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "character_settings.json")
+            with open(path, 'w') as f:
+                json.dump(self.character_settings, f, indent=4)
+        except Exception as e:
+            self.logger.error(f"Error saving character settings: {e}")
+
+    def apply_character_settings(self):
+        """Apply settings for current character"""
+        if not self.current_character or not hasattr(self, 'action_vars'):
+            return
+            
+        char_settings = self.character_settings["characters"].get(self.current_character)
+        if not char_settings:
+            return
+            
+        # Update action states and cooldowns
+        for action_name, var in self.action_vars.items():
+            action_key = action_name.lower().replace(" ", "_")
+            if action_key in char_settings["actions"]:
+                action_settings = char_settings["actions"][action_key]
+                # Set the enabled state from character settings, defaulting to False if not found
+                var.set(action_settings.get("enabled", False))
+                if action_key in self.settings["actions"]:
+                    self.settings["actions"][action_key]["cooldown_minutes"] = action_settings["cooldown_minutes"]
+                    
+        # Update character name in UI if it exists
+        if hasattr(self, 'character_name'):
+            self.character_name.configure(text=self.current_character)
+
+    def save_current_character_settings(self):
+        """Save settings for current character"""
+        if not self.current_character:
+            return
+            
+        # Update character settings with current states
+        char_settings = self.character_settings["characters"][self.current_character]["actions"]
+        for action_name, var in self.action_vars.items():
+            action_key = action_name.lower().replace(" ", "_")
+            if action_key in char_settings:
+                # Save both enabled state and cooldown
+                char_settings[action_key]["enabled"] = var.get()
+                if action_key in self.settings["actions"]:
+                    char_settings[action_key]["cooldown_minutes"] = self.settings["actions"][action_key]["cooldown_minutes"]
+
     def load_cooldown_states(self):
         """Load cooldown states from JSON file"""
         try:
@@ -116,26 +223,30 @@ class MainWindow:
                     self.cooldown_states = json.load(f)
             else:
                 self.cooldown_states = {}
-                for action in [
-                    "gather_resources", 
-                    "collect_city_resources", 
-                    "material_production",
-                    "open_mails",
-                    "claim_daily_vip_gifts",
-                    "change_character", 
-                    "start_game", 
-                    "close_game"
-                ]:
-                    self.cooldown_states[action] = {
-                        "is_active": False,
-                        "start_time": None,
-                        "end_time": None
-                    }
+                # Initialize cooldown states for first character
+                self.initialize_cooldown_states("Character1")
                 self.save_cooldown_states()
         except Exception as e:
             self.logger.error(f"Error loading cooldown states: {e}")
             self.cooldown_states = {}
-        
+
+    def initialize_cooldown_states(self, character_name):
+        """Initialize cooldown states for a character"""
+        self.cooldown_states[character_name] = {}
+        for action in [
+            "gather_resources", 
+            "collect_city_resources", 
+            "material_production",
+            "open_mails",
+            "claim_daily_vip_gifts",
+            "change_character"
+        ]:
+            self.cooldown_states[character_name][action] = {
+                "is_active": False,
+                "start_time": None,
+                "end_time": None
+            }
+
     def save_cooldown_states(self):
         """Save cooldown states to JSON file"""
         try:
@@ -147,10 +258,14 @@ class MainWindow:
         
     def update_cooldowns(self):
         """Update cooldown timers and UI"""
+        if not self.current_character:
+            return
+            
         current_time = datetime.now()
         updated = False
         
-        for action_key, state in self.cooldown_states.items():
+        char_cooldowns = self.cooldown_states.get(self.current_character, {})
+        for action_key, state in char_cooldowns.items():
             if state["is_active"] and state["end_time"]:
                 end_time = datetime.fromisoformat(state["end_time"])
                 if current_time >= end_time:
@@ -198,11 +313,17 @@ class MainWindow:
                 
     def start_cooldown(self, action_key):
         """Start cooldown for an action"""
+        if not self.current_character:
+            return
+            
         current_time = datetime.now()
         cooldown_minutes = self.settings["actions"][action_key]["cooldown_minutes"]
         end_time = current_time + timedelta(minutes=cooldown_minutes)
         
-        self.cooldown_states[action_key] = {
+        if self.current_character not in self.cooldown_states:
+            self.initialize_cooldown_states(self.current_character)
+            
+        self.cooldown_states[self.current_character][action_key] = {
             "is_active": True,
             "start_time": current_time.isoformat(),
             "end_time": end_time.isoformat()
@@ -211,7 +332,13 @@ class MainWindow:
         
     def reset_cooldown(self, action_key):
         """Reset cooldown for an action"""
-        self.cooldown_states[action_key] = {
+        if not self.current_character:
+            return
+            
+        if self.current_character not in self.cooldown_states:
+            self.initialize_cooldown_states(self.current_character)
+            
+        self.cooldown_states[self.current_character][action_key] = {
             "is_active": False,
             "start_time": None,
             "end_time": None
@@ -221,7 +348,12 @@ class MainWindow:
         
     def get_cooldown_remaining(self, action_key):
         """Get remaining cooldown time in minutes and seconds"""
-        state = self.cooldown_states.get(action_key)
+        if not self.current_character:
+            return 0, 0
+            
+        char_cooldowns = self.cooldown_states.get(self.current_character, {})
+        state = char_cooldowns.get(action_key)
+        
         if not state or not state["is_active"] or not state["end_time"]:
             return 0, 0
             
@@ -353,8 +485,16 @@ class MainWindow:
             action_frame = ttk.Frame(activities_frame)
             action_frame.pack(fill=X, pady=1)
             
-            # Create variable for checkbox
-            var = tk.BooleanVar(value=True)
+            # Get saved enabled state for the action
+            action_key = action.lower().replace(" ", "_")
+            enabled = False
+            if (self.current_character and 
+                self.current_character in self.character_settings.get("characters", {}) and
+                action_key in self.character_settings["characters"][self.current_character]["actions"]):
+                enabled = self.character_settings["characters"][self.current_character]["actions"][action_key].get("enabled", False)
+            
+            # Create variable for checkbox with saved state
+            var = tk.BooleanVar(value=enabled)
             self.action_vars[action] = var
             
             # Checkbox on the left
@@ -849,13 +989,20 @@ class MainWindow:
             # Update settings with new values
             cooldown_widget = self.config_widgets.get(f"{action_key}_cooldown")
             if cooldown_widget:
-                self.settings["actions"][action_key]["cooldown_minutes"] = int(cooldown_widget.get())
+                new_cooldown = int(cooldown_widget.get())
+                self.settings["actions"][action_key]["cooldown_minutes"] = new_cooldown
                 
-            # Save to file
+                # Update character-specific settings
+                if self.current_character:
+                    self.character_settings["characters"][self.current_character]["actions"][action_key]["cooldown_minutes"] = new_cooldown
+                    
+            # Save both settings files
             config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "settings.json")
             with open(config_path, 'w') as f:
                 json.dump(self.settings, f, indent=4)
-                
+            
+            self.save_character_settings()
+                    
             self.add_log(f"Configuration saved for {self.selected_action}")
             
         except Exception as e:
@@ -872,8 +1019,41 @@ class MainWindow:
             return False
         
     def update_character_name(self, name):
-        """Update the character name display"""
+        """Update character name and load their settings"""
+        # Save current character's settings before switching
+        if self.current_character:
+            self.save_current_character_settings()
+        
+        # Update UI
         self.character_name.configure(text=name)
+        
+        # Update current character
+        self.current_character = name
+        self.character_settings["current_character"] = name
+        
+        # Create settings for new character if needed
+        if name not in self.character_settings["characters"]:
+            self.character_settings["characters"][name] = {
+                "actions": {}
+            }
+            # Copy default action settings
+            for action_key, action_config in self.settings["actions"].items():
+                self.character_settings["characters"][name]["actions"][action_key] = {
+                    "enabled": action_config.get("enabled", True),
+                    "cooldown_minutes": action_config["cooldown_minutes"]
+                }
+            
+            # Initialize cooldown states for new character
+            if name not in self.cooldown_states:
+                self.initialize_cooldown_states(name)
+        
+        # Apply new character's settings
+        self.apply_character_settings()
+        
+        # Save both character settings and cooldown states
+        self.save_character_settings()
+        self.save_cooldown_states()
+        
         self.add_log(f"Character switched to: {name}")
         
     def update_action_status(self, action, status):
@@ -887,6 +1067,29 @@ class MainWindow:
         
         # Log the status change
         self.add_log(f"Action '{action}' status changed to: {status}")
+        
+    def cleanup_and_exit(self):
+        """Perform cleanup operations before exiting"""
+        try:
+            # Save current character's settings if one is selected
+            if self.current_character:
+                self.save_current_character_settings()
+                
+            # Save character settings file
+            self.save_character_settings()
+            
+            # Save cooldown states
+            self.save_cooldown_states()
+            
+            # Log cleanup
+            self.logger.info("Cleanup completed successfully")
+            
+        except Exception as e:
+            self.logger.error(f"Error during cleanup: {e}")
+            
+        finally:
+            # Destroy the window and exit
+            self.root.destroy()
         
     def run(self):
         """Start the main event loop"""

@@ -49,7 +49,7 @@
     "actions": {
         "gather_resources": {
             "enabled": true,
-            "cooldown_minutes": 47,
+            "cooldown_minutes": 79,
             "max_retries": 3,
             "default_wait_time": 1.5,
             "images": {
@@ -78,7 +78,7 @@
         },
         "material_production": {
             "enabled": true,
-            "cooldown_minutes": 87,
+            "cooldown_minutes": 37,
             "max_retries": 3,
             "default_wait_time": 1.5,
             "images": {

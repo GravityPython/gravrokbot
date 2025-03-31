@@ -1,33 +1,35 @@
 {
-    "gather_resources": {
-        "is_active": false,
-        "start_time": null,
-        "end_time": null
-    },
-    "collect_city_resources": {
-        "is_active": false,
-        "start_time": null,
-        "end_time": null
-    },
-    "material_production": {
-        "is_active": false,
-        "start_time": null,
-        "end_time": null
-    },
-    "open_mails": {
-        "is_active": false,
-        "start_time": null,
-        "end_time": null
-    },
-    "claim_daily_vip_gifts": {
-        "is_active": false,
-        "start_time": null,
-        "end_time": null
-    },
-    "change_character": {
-        "is_active": false,
-        "start_time": null,
-        "end_time": null
+    "Character1": {
+        "gather_resources": {
+            "is_active": false,
+            "start_time": null,
+            "end_time": null
+        },
+        "collect_city_resources": {
+            "is_active": false,
+            "start_time": null,
+            "end_time": null
+        },
+        "material_production": {
+            "is_active": false,
+            "start_time": null,
+            "end_time": null
+        },
+        "open_mails": {
+            "is_active": false,
+            "start_time": null,
+            "end_time": null
+        },
+        "claim_daily_vip_gifts": {
+            "is_active": false,
+            "start_time": null,
+            "end_time": null
+        },
+        "change_character": {
+            "is_active": false,
+            "start_time": null,
+            "end_time": null
+        }
     },
     "start_game": {
         "is_active": false,
@@ -39,4 +41,4 @@
         "start_time": null,
         "end_time": null
     }
-} 
+}

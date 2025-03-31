@@ -1,0 +1,33 @@
+{
+    "characters": {
+        "Character1": {
+            "actions": {
+                "gather_resources": {
+                    "enabled": true,
+                    "cooldown_minutes": 79
+                },
+                "collect_city_resources": {
+                    "enabled": true,
+                    "cooldown_minutes": 33
+                },
+                "material_production": {
+                    "enabled": true,
+                    "cooldown_minutes": 37
+                },
+                "open_mails": {
+                    "enabled": false,
+                    "cooldown_minutes": 30
+                },
+                "claim_daily_vip_gifts": {
+                    "enabled": false,
+                    "cooldown_minutes": 30
+                },
+                "change_character": {
+                    "enabled": false,
+                    "cooldown_minutes": 240
+                }
+            }
+        }
+    },
+    "current_character": "Character1"
+}
