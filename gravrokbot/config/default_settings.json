@@ -76,6 +76,44 @@
         "confirmation": "assets/images/collect_confirmation.png"
       }
     },
+    "material_production": {
+      "enabled": true,
+      "cooldown_minutes": 30,
+      "max_retries": 3,
+      "default_wait_time": 1.5,
+      "images": {
+        "workshop_button": "assets/images/workshop_button.png",
+        "production_slot": "assets/images/production_slot.png",
+        "collect_button": "assets/images/collect_button.png",
+        "start_button": "assets/images/start_production.png",
+        "close_button": "assets/images/close_button.png"
+      }
+    },
+    "open_mails": {
+      "enabled": true,
+      "cooldown_minutes": 30,
+      "max_retries": 3,
+      "default_wait_time": 1.0,
+      "images": {
+        "mail_button": "assets/images/mail_button.png",
+        "claim_all": "assets/images/claim_all.png",
+        "confirm_button": "assets/images/confirm_button.png",
+        "close_button": "assets/images/close_button.png"
+      }
+    },
+    "claim_daily_vip_gifts": {
+      "enabled": true,
+      "cooldown_minutes": 30,
+      "max_retries": 3,
+      "default_wait_time": 1.0,
+      "images": {
+        "vip_button": "assets/images/vip_button.png",
+        "daily_tab": "assets/images/daily_tab.png",
+        "claim_button": "assets/images/claim_button.png",
+        "confirm_button": "assets/images/confirm_button.png",
+        "close_button": "assets/images/close_button.png"
+      }
+    },
     "change_character": {
       "enabled": true,
       "cooldown_minutes": 240,

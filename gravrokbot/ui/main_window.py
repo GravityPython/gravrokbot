@@ -346,9 +346,7 @@ class MainWindow:
             "Material Production",
             "Open Mails",
             "Claim Daily VIP Gifts",
-            "Change Character",
-            "Start Game",
-            "Close Game"
+            "Change Character"
         ]
         
         for action in actions:

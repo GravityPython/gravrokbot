@@ -9,6 +9,21 @@
         "start_time": null,
         "end_time": null
     },
+    "material_production": {
+        "is_active": false,
+        "start_time": null,
+        "end_time": null
+    },
+    "open_mails": {
+        "is_active": false,
+        "start_time": null,
+        "end_time": null
+    },
+    "claim_daily_vip_gifts": {
+        "is_active": false,
+        "start_time": null,
+        "end_time": null
+    },
     "change_character": {
         "is_active": false,
         "start_time": null,
