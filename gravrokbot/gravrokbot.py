@@ -220,8 +220,18 @@ def main():
         return 1
     
     # High DPI support
-    QApplication.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
-    QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
+    try:
+        # Try newer PyQt6 approach
+        QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+        QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+    except AttributeError:
+        # Fall back to older approach for backwards compatibility
+        try:
+            QApplication.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
+            QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
+        except AttributeError:
+            logger.warning("High DPI scaling attributes not available in this PyQt6 version")
+            pass
     
     # Create application
     app = QApplication(sys.argv)

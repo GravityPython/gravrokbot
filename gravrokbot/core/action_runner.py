@@ -3,22 +3,20 @@ import logging
 import threading
 import random
 from datetime import datetime, timedelta
+from gravrokbot.core.bot_runner import BotRunner
 
-class ActionRunner:
+class ActionRunner(BotRunner):
     """Manages and executes game actions based on scheduling and cooldowns"""
     
-    def __init__(self, config):
+    def __init__(self, main_window, config):
         """
         Initialize action runner with config
         
         Args:
+            main_window: Main window instance for UI updates
             config (dict): Configuration dictionary with runner settings
         """
-        self.config = config
-        self.logger = logging.getLogger("GravRokBot.Runner")
-        self.actions = []
-        self.running = False
-        self.thread = None
+        super().__init__(main_window, config)
         
         # Configure timing settings
         self.refresh_rate_seconds = self.config.get('refresh_rate_seconds', 60)
@@ -33,6 +31,15 @@ class ActionRunner:
         # Last time the bot took a break
         self.last_break_time = None
         
+        # Test Mode Settings
+        test_mode_config = self.config.get('test_mode', {})
+        self.test_mode_enabled = test_mode_config.get('enabled', False)
+        self.test_mode_dummy_seconds = test_mode_config.get('dummy_execution_seconds', 15)
+
+        if self.test_mode_enabled:
+            self.logger.warning("----- TEST MODE ENABLED -----")
+            self.logger.info(f"Dummy execution time: {self.test_mode_dummy_seconds} seconds per action.")
+
         self.logger.info("Action runner initialized")
     
     def add_action(self, action):
@@ -53,19 +60,44 @@ class ActionRunner:
             
         self.logger.info("Starting action runner")
         self.running = True
+        self.interrupt_requested = False
         self.thread = threading.Thread(target=self._run_loop, daemon=True)
         self.thread.start()
     
     def stop(self):
-        """Stop the action runner"""
+        """Stop the action runner immediately"""
         if not self.running:
             self.logger.warning("Action runner not running")
             return
             
         self.logger.info("Stopping action runner")
-        self.running = False
-        if self.thread:
+        self.interrupt()
+        
+        if hasattr(self, 'thread') and self.thread:
             self.thread.join(timeout=5.0)
+            
+        # Reset all action statuses to N/A
+        for action in self.actions:
+            if action.enabled:
+                self.main_window.update_action_status(action.name, "N/A")
+    
+    def _interruptible_sleep(self, seconds):
+        """Sleep function that can be interrupted"""
+        end_time = time.time() + seconds
+        while time.time() < end_time:
+            # Check if interrupted
+            if self.interrupt_requested:
+                self.logger.debug("Sleep interrupted")
+                return True
+                
+            # Check if paused
+            if self.wait_if_paused():
+                return True
+                
+            # Sleep in small increments to allow interruption
+            time.sleep(0.1)
+            
+        return False
     
     def _is_night_sleep_time(self):
         """
@@ -114,53 +146,126 @@ class ActionRunner:
         # Record break time
         self.last_break_time = datetime.now()
         
-        # Sleep for break duration
-        time.sleep(break_minutes * 60)
+        # Sleep for break duration (interruptible)
+        if self._interruptible_sleep(break_minutes * 60):
+            self.logger.info("Coffee break interrupted")
+            return True
         
         self.logger.info("Coffee break finished, resuming actions")
+        return False
     
     def _run_loop(self):
         """Main action runner loop"""
         self.logger.info("Action runner loop started")
         
         try:
-            while self.running:
+            while self.running and not self.interrupt_requested:
                 # Check if it's night sleep time
                 if self._is_night_sleep_time():
                     self.logger.info("Night sleep time, pausing actions")
-                    time.sleep(self.refresh_rate_seconds)
+                    if self._interruptible_sleep(self.refresh_rate_seconds):
+                        break
                     continue
                 
                 # Check if we should take a coffee break
                 if self._should_take_coffee_break():
-                    self._take_coffee_break()
+                    if self._take_coffee_break():
+                        break
                 
-                # Execute enabled actions that are not on cooldown
-                executed_count = 0
-                for action in self.actions:
-                    if not action.is_on_cooldown() and action.enabled:
-                        action.execute()
-                        executed_count += 1
-                        
-                        # Small delay between actions
-                        time.sleep(random.uniform(1.0, 3.0))
+                # Check if paused
+                if self.wait_if_paused():
+                    self.logger.info("Run loop interrupted during pause")
+                    break
                 
-                if executed_count == 0:
-                    self.logger.info("No actions executed in this cycle (all on cooldown or disabled)")
+                # --- Action Execution Logic ---
+                if self.test_mode_enabled:
+                    # Test Mode: Simulate execution without cooldowns or real execution
+                    self.logger.info("--- Test Mode Cycle ---")
+                    test_executed_count = 0
+                    for action in self.actions:
+                        # Check for interruption
+                        if not self.running or self.interrupt_requested:
+                            break
+                            
+                        if action.enabled:
+                            # Update action status in UI
+                            self.main_window.update_action_status(action.name, "Working")
+                            
+                            start_time = datetime.now().strftime("%H:%M:%S")
+                            self.logger.info(f"[{start_time}] Testing Action: {action.name} - Starting (Simulating {self.test_mode_dummy_seconds}s)")
+                            
+                            # Simulation with interruptible sleep
+                            if self._interruptible_sleep(self.test_mode_dummy_seconds):
+                                self.logger.info(f"Action {action.name} execution interrupted")
+                                break
+                            
+                            # If we're still running (not interrupted), log completion
+                            if self.running and not self.interrupt_requested:
+                                end_time = datetime.now().strftime("%H:%M:%S")
+                                self.logger.info(f"[{end_time}] Testing Action: {action.name} - Completed")
+                                self.main_window.update_action_status(action.name, "Done")
+                                test_executed_count += 1
+                    
+                    if test_executed_count == 0 and self.running and not self.interrupt_requested:
+                         self.logger.info("No enabled actions to test in this cycle.")
+
+                else:
+                    # Normal Mode: Execute enabled actions that are not on cooldown
+                    executed_count = 0
+                    for action in self.actions:
+                        # Check for interruption
+                        if not self.running or self.interrupt_requested:
+                            break
+                            
+                        if not action.is_on_cooldown() and action.enabled:
+                            # Update UI status
+                            self.main_window.update_action_status(action.name, "Working")
+                            
+                            # Execute action
+                            action.execute()
+                            executed_count += 1
+                            
+                            # Update UI status after execution
+                            self.main_window.update_action_status(action.name, "Done")
+
+                            # Small delay between actions
+                            delay = random.uniform(1.0, 3.0)
+                            if self._interruptible_sleep(delay):
+                                break
+
+                    if executed_count == 0 and self.running and not self.interrupt_requested:
+                        self.logger.info("No actions executed in this cycle (all on cooldown or disabled)")
+                # --- End Action Execution Logic ---
+                
+                # Exit if interrupted
+                if not self.running or self.interrupt_requested:
+                    break
                 
                 # Wait for next cycle
-                time.sleep(self.refresh_rate_seconds)
+                self.logger.info(f"Waiting {self.refresh_rate_seconds} seconds for next cycle...")
                 
                 # Check if we should continue running
                 if not self.continuous_running:
                     self.logger.info("Continuous running disabled, stopping after one cycle")
                     break
                     
+                # Wait for next cycle with interruptible sleep
+                if self._interruptible_sleep(self.refresh_rate_seconds):
+                    self.logger.info("Wait between cycles interrupted")
+                    break
+                    
+                # Reset action statuses for next cycle if still running
+                if self.running and not self.interrupt_requested:
+                    for action in self.actions:
+                        if action.enabled:
+                            self.main_window.update_action_status(action.name, "Waiting")
+                    
         except Exception as e:
             self.logger.error(f"Error in action runner loop: {e}")
         finally:
             self.logger.info("Action runner loop stopped")
             self.running = False
+            self.interrupt_requested = False
     
     def get_action_statuses(self):
         """

@@ -13,6 +13,10 @@
             "enabled": true,
             "min_seconds": 1800,
             "max_seconds": 3600
+        },
+        "test_mode": {
+            "enabled": true,
+            "dummy_execution_seconds": 15
         }
     },
     "screen": {

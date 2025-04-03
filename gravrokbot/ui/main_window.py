@@ -10,6 +10,7 @@ import sys
 import os
 import logging
 import json
+from gravrokbot.core.runner_factory import create_runner
 
 class MainWindow:
     def __init__(self):
@@ -43,6 +44,9 @@ class MainWindow:
         
         # Load cooldown states
         self.load_cooldown_states()
+        
+        # Initialize runner
+        self.runner = None
         
         # Create main container
         self.main_container = ttk.Frame(self.root)
@@ -414,6 +418,15 @@ class MainWindow:
         )
         self.start_button.pack(side=LEFT, padx=5)
         
+        self.pause_button = ttk.Button(
+            control_frame,
+            text="Pause Bot",
+            bootstyle="warning",
+            command=self.toggle_pause,
+            state="disabled"
+        )
+        self.pause_button.pack(side=LEFT, padx=5)
+        
         self.stop_button = ttk.Button(
             control_frame,
             text="Stop Bot",
@@ -722,6 +735,32 @@ class MainWindow:
         self.char_switch_max.insert(0, str(self.settings["runner"]["character_switch"]["max_seconds"]))
         self.char_switch_max.pack(side=LEFT, padx=5)
         
+        # Test Mode Settings Frame
+        test_frame = ttk.LabelFrame(misc_frame, text="Test Mode", padding=10)
+        test_frame.pack(fill=X, padx=5, pady=5)
+        
+        # Enable/Disable Toggle
+        test_mode_enabled = self.settings["runner"].get("test_mode", {}).get("enabled", False)
+        self.test_mode_enabled = ttk.Checkbutton(
+            test_frame,
+            text="Enable Test Mode",
+            variable=tk.BooleanVar(value=test_mode_enabled),
+            bootstyle="round-toggle"
+        )
+        self.test_mode_enabled.pack(fill=X, pady=2)
+        
+        # Dummy execution seconds
+        dummy_frame = ttk.Frame(test_frame)
+        dummy_frame.pack(fill=X, pady=2)
+        ttk.Label(dummy_frame, text="Execution time (seconds):").pack(side=LEFT)
+        self.test_dummy_seconds = ttk.Entry(
+            dummy_frame,
+            width=10
+        )
+        dummy_seconds = self.settings["runner"].get("test_mode", {}).get("dummy_execution_seconds", 15)
+        self.test_dummy_seconds.insert(0, str(dummy_seconds))
+        self.test_dummy_seconds.pack(side=LEFT, padx=5)
+        
         # Save Settings Button
         save_frame = ttk.Frame(misc_frame)
         save_frame.pack(fill=X, pady=10, padx=5)
@@ -763,8 +802,15 @@ class MainWindow:
     def start_bot(self):
         """Start the bot"""
         self.running = True
+        
+        # Initialize runner if not already done
+        if not self.runner:
+            self.initialize_runner()
+            
+        # Update UI
         self.status_label.configure(text="Status: Running", bootstyle="success")
         self.start_button.configure(state="disabled")
+        self.pause_button.configure(state="normal", text="Pause Bot")
         self.stop_button.configure(state="normal")
         self.add_log("Bot started")
         
@@ -775,17 +821,86 @@ class MainWindow:
             else:
                 self.update_action_status(action, "N/A")
         
+        # Start the runner
+        self.runner.start()
+    
+    def toggle_pause(self):
+        """Toggle between pause and resume"""
+        if not self.runner:
+            return
+            
+        if not self.runner.paused:
+            # Pause the bot
+            self.runner.pause()
+            self.status_label.configure(text="Status: Paused", bootstyle="warning")
+            self.pause_button.configure(text="Resume Bot")
+            self.add_log("Bot paused")
+        else:
+            # Resume the bot
+            self.runner.resume()
+            self.status_label.configure(text="Status: Running", bootstyle="success")
+            self.pause_button.configure(text="Pause Bot")
+            self.add_log("Bot resumed")
+    
     def stop_bot(self):
         """Stop the bot"""
+        # Stop the runner if it exists
+        if self.runner:
+            self.runner.stop()
+            
         self.running = False
         self.status_label.configure(text="Status: Ready", bootstyle="info")
         self.start_button.configure(state="normal")
+        self.pause_button.configure(state="disabled", text="Pause Bot")
         self.stop_button.configure(state="disabled")
         self.add_log("Bot stopped")
         
         # Reset all action statuses to "N/A"
         for action in self.action_status_labels:
             self.update_action_status(action, "N/A")
+    
+    def initialize_runner(self):
+        """Initialize the appropriate runner based on settings"""
+        from gravrokbot.core.screen_interaction import ScreenInteraction
+        from gravrokbot.actions.gather_resources import GatherResourcesAction
+        from gravrokbot.actions.collect_city_resources import CollectCityResourcesAction
+        from gravrokbot.actions.material_production import MaterialProductionAction
+        from gravrokbot.actions.open_mails import OpenMailsAction
+        from gravrokbot.actions.claim_daily_vip_gifts import ClaimDailyVIPGiftsAction
+        from gravrokbot.actions.change_character import ChangeCharacterAction
+        
+        # Create screen interaction for production mode
+        screen = ScreenInteraction(self.settings['screen'])
+        
+        # Create the runner
+        self.runner = create_runner(self, self.settings['runner'])
+        
+        # Add actions based on UI settings
+        if self.action_vars.get("Gather Resources", tk.BooleanVar(value=False)).get():
+            gather_action = GatherResourcesAction(screen, self.settings['actions']['gather_resources'])
+            self.runner.add_action(gather_action)
+            
+        if self.action_vars.get("Collect City Resources", tk.BooleanVar(value=False)).get():
+            collect_action = CollectCityResourcesAction(screen, self.settings['actions']['collect_city_resources'])
+            self.runner.add_action(collect_action)
+            
+        if self.action_vars.get("Material Production", tk.BooleanVar(value=False)).get():
+            material_action = MaterialProductionAction(screen, self.settings['actions']['material_production'])
+            self.runner.add_action(material_action)
+            
+        if self.action_vars.get("Open Mails", tk.BooleanVar(value=False)).get():
+            mail_action = OpenMailsAction(screen, self.settings['actions']['open_mails'])
+            self.runner.add_action(mail_action)
+            
+        if self.action_vars.get("Claim Daily VIP Gifts", tk.BooleanVar(value=False)).get():
+            vip_action = ClaimDailyVIPGiftsAction(screen, self.settings['actions']['claim_daily_vip_gifts'])
+            self.runner.add_action(vip_action)
+            
+        if self.action_vars.get("Change Character", tk.BooleanVar(value=False)).get():
+            char_action = ChangeCharacterAction(screen, self.settings['actions']['change_character'])
+            self.runner.add_action(char_action)
+            
+        self.logger.info("Runner initialized with enabled actions")
         
     def save_settings(self):
         """Save current settings to file"""
@@ -805,6 +920,10 @@ class MainWindow:
                     "enabled": self.char_switch_enabled.instate(['selected']),
                     "min_seconds": int(self.char_switch_min.get()),
                     "max_seconds": int(self.char_switch_max.get())
+                },
+                "test_mode": {
+                    "enabled": self.test_mode_enabled.instate(['selected']),
+                    "dummy_execution_seconds": int(self.test_dummy_seconds.get())
                 }
             })
             
@@ -860,6 +979,13 @@ class MainWindow:
         
         self.char_switch_max.delete(0, tk.END)
         self.char_switch_max.insert(0, str(self.settings["runner"]["character_switch"]["max_seconds"]))
+        
+        self.test_mode_enabled.state(['!selected'])
+        if self.settings["runner"]["test_mode"]["enabled"]:
+            self.test_mode_enabled.state(['selected'])
+        
+        self.test_dummy_seconds.delete(0, tk.END)
+        self.test_dummy_seconds.insert(0, str(self.settings["runner"]["test_mode"]["dummy_execution_seconds"]))
         
         self.add_log("Settings reset to default values")
         
