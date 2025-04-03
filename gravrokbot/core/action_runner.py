@@ -31,6 +31,9 @@ class ActionRunner(BotRunner):
         # Last time the bot took a break
         self.last_break_time = None
         
+        # Loop counter
+        self.loop_counter = 0
+        
         # Test Mode Settings
         test_mode_config = self.config.get('test_mode', {})
         self.test_mode_enabled = test_mode_config.get('enabled', False)
@@ -160,6 +163,14 @@ class ActionRunner(BotRunner):
         
         try:
             while self.running and not self.interrupt_requested:
+                # Increment the loop counter and log start
+                self.loop_counter += 1
+                self.logger.info(f"Start loop number {self.loop_counter}")
+                self.main_window.add_log(f"Start loop number {self.loop_counter}")
+                
+                # Refresh action list at the start of each loop
+                self.main_window.refresh_runner_actions()
+                
                 # Check if it's night sleep time
                 if self._is_night_sleep_time():
                     self.logger.info("Night sleep time, pausing actions")
@@ -241,8 +252,9 @@ class ActionRunner(BotRunner):
                 if not self.running or self.interrupt_requested:
                     break
                 
-                # Wait for next cycle
-                self.logger.info(f"Waiting {self.refresh_rate_seconds} seconds for next cycle...")
+                # Log loop completion
+                self.logger.info(f"Completed loop number {self.loop_counter}")
+                self.main_window.add_log(f"Completed loop number {self.loop_counter}")
                 
                 # Check if we should continue running
                 if not self.continuous_running:
@@ -250,16 +262,17 @@ class ActionRunner(BotRunner):
                     break
                     
                 # Wait for next cycle with interruptible sleep
+                self.logger.info(f"Waiting {self.refresh_rate_seconds} seconds for next cycle...")
                 if self._interruptible_sleep(self.refresh_rate_seconds):
                     self.logger.info("Wait between cycles interrupted")
                     break
                     
                 # Reset action statuses for next cycle if still running
                 if self.running and not self.interrupt_requested:
+                    # Update status for enabled actions to "Waiting"
                     for action in self.actions:
                         if action.enabled:
                             self.main_window.update_action_status(action.name, "Waiting")
-                    
         except Exception as e:
             self.logger.error(f"Error in action runner loop: {e}")
         finally:

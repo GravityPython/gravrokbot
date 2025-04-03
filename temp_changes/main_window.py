@@ -195,12 +195,7 @@ class MainWindow:
             if action_key in char_settings["actions"]:
                 action_settings = char_settings["actions"][action_key]
                 # Set the enabled state from character settings, defaulting to False if not found
-                enabled = action_settings.get("enabled", False)
-                var.set(enabled)
-                
-                # Update the action status based on enabled state
-                self.update_action_status(action_name, "Waiting" if enabled else "N/A")
-                
+                var.set(action_settings.get("enabled", False))
                 if action_key in self.settings["actions"]:
                     self.settings["actions"][action_key]["cooldown_minutes"] = action_settings["cooldown_minutes"]
                     
@@ -287,10 +282,6 @@ class MainWindow:
         # Update UI if config tab is showing cooldowns
         if self.selected_action:
             self.update_cooldown_status()
-            
-        # Synchronize action enabled states with the UI checkboxes if runner is active
-        if self.runner and self.running:
-            self.update_action_enabled_states()
             
         # Schedule next update using refresh rate from settings
         refresh_rate = self.settings["runner"]["refresh_rate_seconds"] * 1000  # Convert to milliseconds
@@ -518,33 +509,7 @@ class MainWindow:
             # Create variable for checkbox with saved state
             var = tk.BooleanVar(value=enabled)
             self.action_vars[action] = var
-
-            # Function to handle checkbox changes for this specific action
-            def on_checkbox_change(action_name=action):
-                new_state = self.action_vars[action_name].get()
-                
-                # Update the action status based on checkbox state
-                self.update_action_status(action_name, "Waiting" if new_state else "N/A")
-                
-                # Update runner action if it exists
-                if self.runner and hasattr(self.runner, 'actions'):
-                    # Find the matching action in the runner and update its enabled state
-                    found = False
-                    for act in self.runner.actions:
-                        if act.name == action_name or act.name.lower().replace(" ", "_") == action_name.lower().replace(" ", "_"):
-                            old_state = act.enabled
-                            if old_state != new_state:
-                                act.enabled = new_state
-                                self.logger.info(f"Action '{act.name}' {'enabled' if new_state else 'disabled'} from UI checkbox")
-                            found = True
-                            break
-                    
-                    if not found:
-                        self.logger.debug(f"Action '{action_name}' not found in runner, changes will apply on next refresh")
-
-            # Add trace to the variable to call our function when the checkbox changes
-            var.trace_add("write", lambda *args, a=action: on_checkbox_change(a))
-
+            
             # Checkbox on the left
             ttk.Checkbutton(
                 action_frame,
@@ -595,7 +560,7 @@ class MainWindow:
             wrap=tk.WORD,
             bg='#2b3e50',  # Dark theme background
             fg='#ffffff',  # White text
-            font=('Consolas', 14)
+            font=('Consolas', 10)
         )
         self.log_text.pack(fill=BOTH, expand=True)
         
@@ -841,10 +806,7 @@ class MainWindow:
         # Initialize runner if not already done
         if not self.runner:
             self.initialize_runner()
-        else:
-            # Refresh actions to ensure only currently enabled actions are included
-            self.refresh_runner_actions()
-        
+            
         # Update UI
         self.status_label.configure(text="Status: Running", bootstyle="success")
         self.start_button.configure(state="disabled")
@@ -899,32 +861,6 @@ class MainWindow:
     
     def initialize_runner(self):
         """Initialize the appropriate runner based on settings"""
-        # Create the appropriate runner
-        from gravrokbot.core.runner_factory import create_runner
-        self.runner = create_runner(self, self.settings["runner"])
-        
-        # Create screen interaction for production mode
-        from gravrokbot.core.screen_interaction import ScreenInteraction
-        screen = ScreenInteraction(self.settings['screen'])
-        
-        # Add actions based on UI settings
-        self.refresh_runner_actions()
-        
-        self.logger.info("Runner initialized with enabled actions")
-        self.add_log("Runner initialized")
-        
-    def refresh_runner_actions(self):
-        """
-        Refresh runner actions based on currently enabled UI checkboxes
-        """
-        if not self.runner:
-            self.logger.warning("Cannot refresh actions: runner not initialized")
-            return
-        
-        # Clear existing actions
-        self.runner.clear_actions()
-        
-        # Create screen interaction and add enabled actions
         from gravrokbot.core.screen_interaction import ScreenInteraction
         from gravrokbot.actions.gather_resources import GatherResourcesAction
         from gravrokbot.actions.collect_city_resources import CollectCityResourcesAction
@@ -935,6 +871,9 @@ class MainWindow:
         
         # Create screen interaction for production mode
         screen = ScreenInteraction(self.settings['screen'])
+        
+        # Create the runner
+        self.runner = create_runner(self, self.settings['runner'])
         
         # Add actions based on UI settings
         if self.action_vars.get("Gather Resources", tk.BooleanVar(value=False)).get():
@@ -960,54 +899,8 @@ class MainWindow:
         if self.action_vars.get("Change Character", tk.BooleanVar(value=False)).get():
             char_action = ChangeCharacterAction(screen, self.settings['actions']['change_character'])
             self.runner.add_action(char_action)
-        
-        # Update UI statuses based on action enabled/disabled state
-        for action_name, var in self.action_vars.items():
-            if var.get():  # If action is enabled in UI
-                # Only set to "Waiting" if the bot is actually running
-                if self.running:
-                    self.update_action_status(action_name, "Waiting")
-            else:  # If action is disabled in UI
-                self.update_action_status(action_name, "N/A")
-        
-        self.logger.info("Runner actions refreshed based on enabled actions")
-        self.add_log("Refresh action list")
-        
-    def update_action_enabled_states(self):
-        """
-        Update the enabled state of existing runner actions based on the UI checkboxes
-        without recreating the actions.
-        """
-        if not self.runner or not hasattr(self.runner, 'actions'):
-            return
-        
-        # Dictionary to map action name to its enabled state from UI
-        enabled_states = {}
-        for action_name, var in self.action_vars.items():
-            enabled_states[action_name] = var.get()
-        
-        # Log the sync operation
-        self.logger.debug("Synchronizing action enabled states with UI checkboxes")
-        
-        # Update each action in the runner
-        for action in self.runner.actions:
-            if action.name in enabled_states:
-                was_enabled = action.enabled
-                action.enabled = enabled_states[action.name]
-                if was_enabled != action.enabled:
-                    self.logger.info(f"Action '{action.name}' {'enabled' if action.enabled else 'disabled'} from UI")
-                    self.add_log(f"Action '{action.name}' {'enabled' if action.enabled else 'disabled'} from UI")
-            else:
-                # For actions not found in UI controls (shouldn't happen, but just in case)
-                for name, state in enabled_states.items():
-                    # Try to match by normalized name
-                    if name.lower().replace(" ", "_") == action.name.lower().replace(" ", "_"):
-                        was_enabled = action.enabled
-                        action.enabled = state
-                        if was_enabled != action.enabled:
-                            self.logger.info(f"Action '{action.name}' {'enabled' if action.enabled else 'disabled'} from UI (normalized match)")
-                            self.add_log(f"Action '{action.name}' {'enabled' if action.enabled else 'disabled'} from UI")
-                        break
+            
+        self.logger.info("Runner initialized with enabled actions")
         
     def save_settings(self):
         """Save current settings to file"""

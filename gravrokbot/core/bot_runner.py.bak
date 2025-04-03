@@ -25,13 +25,6 @@ class BotRunner:
         self.logger.info(f"Adding action: {action.name}")
         self.actions.append(action)
     
-    def clear_actions(self):
-        """
-        Clear all actions from the runner
-        """
-        self.logger.info("Clearing all actions from runner")
-        self.actions = []
-    
     def start(self):
         """Start the runner - to be implemented by subclasses"""
         raise NotImplementedError("Subclasses must implement start()")

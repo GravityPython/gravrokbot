@@ -24,11 +24,18 @@ class TestRunner(BotRunner):
         test_mode_config = self.config.get('test_mode', {})
         self.dummy_execution_seconds = test_mode_config.get('dummy_execution_seconds', 15)
         
+        # Runner settings
+        self.continuous_running = self.config.get('continuous_running', True)
+        self.refresh_rate = self.config.get('refresh_rate_seconds', 60)
+        
         # Test runner specific properties
         self.current_action_index = 0
         self.thread = None
         self.current_sleep_start = None
         self.current_sleep_duration = 0
+        
+        # Loop counter
+        self.loop_counter = 0
         
         self.logger.warning("----- TEST MODE ENABLED -----")
         self.logger.info(f"Dummy execution time: {self.dummy_execution_seconds} seconds per action.")
@@ -87,10 +94,18 @@ class TestRunner(BotRunner):
     
     def _run_loop(self):
         """Main test runner loop"""
+        self.loop_counter = 0
         self.logger.info("Test runner loop started")
         
         try:
             while self.running and not self.interrupt_requested:
+                self.loop_counter += 1
+                self.logger.info(f"Start loop number {self.loop_counter}")
+                self.main_window.add_log(f"Start loop number {self.loop_counter}")
+                
+                # Refresh action list at the start of each loop
+                self.main_window.refresh_runner_actions()
+                
                 # Test Mode: Simulate execution without cooldowns or real execution
                 self.logger.info("--- Test Mode Cycle ---")
                 test_executed_count = 0
@@ -138,26 +153,29 @@ class TestRunner(BotRunner):
                 if test_executed_count == 0:
                     self.logger.info("No enabled actions to test in this cycle.")
                 
-                # Wait for next cycle
-                refresh_rate = self.config.get('refresh_rate_seconds', 60)
-                self.logger.info(f"Waiting {refresh_rate} seconds for next cycle...")
-                
-                # Check if we should continue running
-                if not self.config.get('continuous_running', True):
-                    self.logger.info("Continuous running disabled, stopping after one cycle")
-                    break
-                
-                # Wait for next cycle with interruptible sleep
-                if self._interruptible_sleep(refresh_rate):
-                    self.logger.info("Wait between cycles interrupted")
-                    break
+                # Log loop completion
+                self.logger.info(f"Completed loop number {self.loop_counter}")
+                self.main_window.add_log(f"Completed loop number {self.loop_counter}")
                 
                 # Reset action statuses for next cycle if still running
                 if self.running and not self.interrupt_requested:
+                    # Update status for enabled actions to "Waiting"
                     for action in self.actions:
                         if action.enabled:
                             self.main_window.update_action_status(action.name, "Waiting")
-                    
+                
+                # Check if we should continue running
+                if not self.continuous_running:
+                    self.logger.info("Continuous running disabled, stopping after one cycle")
+                    self.running = False
+                    break
+                
+                # Wait for next cycle with interruptible sleep
+                self.logger.info(f"Waiting {self.refresh_rate} seconds for next cycle...")
+                if self._interruptible_sleep(self.refresh_rate):
+                    self.logger.info("Wait between cycles interrupted")
+                    break
+                
         except Exception as e:
             self.logger.error(f"Error in test runner loop: {e}")
         finally:
