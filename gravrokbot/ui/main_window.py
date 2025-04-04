@@ -839,7 +839,57 @@ class MainWindow:
     def add_log(self, message):
         """Add a message to the log with timestamp"""
         timestamp = datetime.now().strftime('[%H:%M:%S]')
-        self.log_text.insert('end', f"{timestamp} {message}\n")
+        
+        # Define messages that should be displayed in light green
+        green_prefixes = [
+            "Start loop number",
+            "Refresh action list",
+            "Reset actions status to Waiting",
+            "Start Actions Execution",
+            "Completed loop number",
+            "Next loop will start in"
+        ]
+        
+        # Define error messages that should be displayed in red
+        error_keywords = [
+            "Error",
+            "Failed",
+            "Exception",
+            "Timeout"
+        ]
+        
+        # Check if message should be displayed in light green
+        use_green = False
+        for prefix in green_prefixes:
+            if message.startswith(prefix):
+                use_green = True
+                break
+        
+        # Check if message should be displayed in red (error)
+        use_red = False
+        for keyword in error_keywords:
+            if keyword.lower() in message.lower():
+                use_red = True
+                use_green = False  # Error takes precedence over green
+                break
+        
+        # Configure tags if they don't exist
+        if not self.log_text.tag_names() or "light_green" not in self.log_text.tag_names():
+            self.log_text.tag_configure("light_green", foreground="#90EE90")  # Light green color
+            
+        if not self.log_text.tag_names() or "error_red" not in self.log_text.tag_names():
+            self.log_text.tag_configure("error_red", foreground="#FF6666")  # Light red color
+            
+        # Insert with appropriate color tag
+        if use_red:
+            self.log_text.insert('end', f"{timestamp} {message}\n", "error_red")
+        elif use_green:
+            self.log_text.insert('end', f"{timestamp} {message}\n", "light_green")
+        else:
+            # Insert with default color
+            self.log_text.insert('end', f"{timestamp} {message}\n")
+            
+        # Auto-scroll to the end
         self.log_text.see('end')
         
     def start_bot(self):
