@@ -6,7 +6,7 @@ import random
 import logging
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from gravrokbot.core.bot_runner import BotRunner
 
 class TestRunner(BotRunner):
@@ -172,6 +172,12 @@ class TestRunner(BotRunner):
                     self.logger.info("Continuous running disabled, stopping after one cycle")
                     self.running = False
                     break
+                
+                # Calculate and log when the next loop will start
+                next_loop_time = datetime.now() + timedelta(seconds=self.refresh_rate)
+                next_loop_time_str = next_loop_time.strftime("%H:%M:%S")
+                self.logger.info(f"Next loop will start in {self.refresh_rate} seconds, at {next_loop_time_str}")
+                self.main_window.add_log(f"Next loop will start in {self.refresh_rate} seconds, at {next_loop_time_str}")
                 
                 # Wait for next cycle with interruptible sleep
                 self.logger.info(f"Waiting {self.refresh_rate} seconds for next cycle...")

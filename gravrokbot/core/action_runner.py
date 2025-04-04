@@ -270,6 +270,12 @@ class ActionRunner(BotRunner):
                 if not self.continuous_running:
                     self.logger.info("Continuous running disabled, stopping after one cycle")
                     break
+                
+                # Calculate and log when the next loop will start
+                next_loop_time = datetime.now() + timedelta(seconds=self.refresh_rate_seconds)
+                next_loop_time_str = next_loop_time.strftime("%H:%M:%S")
+                self.logger.info(f"Next loop will start in {self.refresh_rate_seconds} seconds, at {next_loop_time_str}")
+                self.main_window.add_log(f"Next loop will start in {self.refresh_rate_seconds} seconds, at {next_loop_time_str}")
                     
                 # Wait for next cycle with interruptible sleep
                 self.logger.info(f"Waiting {self.refresh_rate_seconds} seconds for next cycle...")
