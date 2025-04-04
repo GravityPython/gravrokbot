@@ -120,6 +120,10 @@ class TestRunner(BotRunner):
                 self.logger.info("--- Test Mode Cycle ---")
                 test_executed_count = 0
                 
+                # Log the start of action execution
+                self.logger.info("Start Actions Execution")
+                self.main_window.add_log("Start Actions Execution")
+                
                 # Process each action
                 for action in self.actions:
                     # Check for interruption between actions

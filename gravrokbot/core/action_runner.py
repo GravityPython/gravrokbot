@@ -203,6 +203,11 @@ class ActionRunner(BotRunner):
                     # Test Mode: Simulate execution without cooldowns or real execution
                     self.logger.info("--- Test Mode Cycle ---")
                     test_executed_count = 0
+                    
+                    # Log the start of action execution
+                    self.logger.info("Start Actions Execution")
+                    self.main_window.add_log("Start Actions Execution")
+                    
                     for action in self.actions:
                         # Check for interruption
                         if not self.running or self.interrupt_requested:
@@ -233,6 +238,11 @@ class ActionRunner(BotRunner):
                 else:
                     # Normal Mode: Execute enabled actions that are not on cooldown
                     executed_count = 0
+                    
+                    # Log the start of action execution
+                    self.logger.info("Start Actions Execution")
+                    self.main_window.add_log("Start Actions Execution")
+                    
                     for action in self.actions:
                         # Check for interruption
                         if not self.running or self.interrupt_requested:

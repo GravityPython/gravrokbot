@@ -3,11 +3,11 @@
         "Character1": {
             "actions": {
                 "gather_resources": {
-                    "enabled": false,
+                    "enabled": true,
                     "cooldown_minutes": 79
                 },
                 "collect_city_resources": {
-                    "enabled": false,
+                    "enabled": true,
                     "cooldown_minutes": 33
                 },
                 "material_production": {
@@ -19,7 +19,7 @@
                     "cooldown_minutes": 30
                 },
                 "claim_daily_vip_gifts": {
-                    "enabled": true,
+                    "enabled": false,
                     "cooldown_minutes": 30
                 },
                 "change_character": {
