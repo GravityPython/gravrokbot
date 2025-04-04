@@ -64,10 +64,11 @@ class TestRunner(BotRunner):
         if hasattr(self, 'thread') and self.thread:
             self.thread.join(timeout=5.0)
             
-        # Reset all action statuses to N/A
+        # Set action statuses based on enabled state
         for action in self.actions:
-            if action.enabled:
-                self.main_window.update_action_status(action.name, "N/A")
+            # Update status to match the enabled state
+            status = "Waiting" if action.enabled else "N/A"
+            self.main_window.update_action_status(action.name, status)
     
     def _interruptible_sleep(self, seconds):
         """Sleep function that can be interrupted"""

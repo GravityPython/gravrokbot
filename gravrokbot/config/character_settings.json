@@ -3,7 +3,7 @@
         "Character1": {
             "actions": {
                 "gather_resources": {
-                    "enabled": true,
+                    "enabled": false,
                     "cooldown_minutes": 79
                 },
                 "collect_city_resources": {
@@ -15,7 +15,7 @@
                     "cooldown_minutes": 37
                 },
                 "open_mails": {
-                    "enabled": false,
+                    "enabled": true,
                     "cooldown_minutes": 30
                 },
                 "claim_daily_vip_gifts": {

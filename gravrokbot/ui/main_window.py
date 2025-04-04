@@ -570,11 +570,12 @@ class MainWindow:
             btn.pack(side=RIGHT, padx=5)
             self.action_buttons[action] = btn
             
-            # Create status label with default "N/A" status
+            # Create status label with default status based on enabled state
+            initial_status = "Waiting" if enabled else "N/A"
             status_label = ttk.Label(
                 action_frame,
-                text="N/A",
-                bootstyle=self.ACTION_STATUSES["N/A"],
+                text=initial_status,
+                bootstyle=self.ACTION_STATUSES[initial_status],
                 padding=(5, 2)  # Add some padding to make the background more visible
             )
             status_label.pack(side=RIGHT, padx=5)
@@ -900,9 +901,12 @@ class MainWindow:
         self.stop_button.configure(state="disabled")
         self.add_log("Bot stopped")
         
-        # Reset all action statuses to "N/A"
-        for action in self.action_status_labels:
-            self.update_action_status(action, "N/A")
+        # Set action statuses based on their enabled state
+        for action, var in self.action_vars.items():
+            if var.get():  # If action is checked/enabled
+                self.update_action_status(action, "Waiting")
+            else:
+                self.update_action_status(action, "N/A")
     
     def initialize_runner(self):
         """Initialize the appropriate runner based on settings"""
