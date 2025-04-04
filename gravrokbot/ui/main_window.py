@@ -526,6 +526,14 @@ class MainWindow:
                 # Update the action status based on checkbox state
                 self.update_action_status(action_name, "Waiting" if new_state else "N/A")
                 
+                # Log that action will be included/removed in next loop
+                if new_state:
+                    self.logger.info(f"Action '{action_name}' will be included in next loop")
+                    self.add_log(f"Action '{action_name}' will be included in next loop")
+                else:
+                    self.logger.info(f"Action '{action_name}' will be removed in next loop")
+                    self.add_log(f"Action '{action_name}' will be removed in next loop")
+                
                 # Update runner action if it exists
                 if self.runner and hasattr(self.runner, 'actions'):
                     # Find the matching action in the runner and update its enabled state
@@ -535,7 +543,6 @@ class MainWindow:
                             old_state = act.enabled
                             if old_state != new_state:
                                 act.enabled = new_state
-                                self.logger.info(f"Action '{act.name}' {'enabled' if new_state else 'disabled'} from UI checkbox")
                             found = True
                             break
                     
@@ -915,17 +922,22 @@ class MainWindow:
         
     def refresh_runner_actions(self):
         """
-        Refresh runner actions based on currently enabled UI checkboxes
+        Refresh actions based on currently enabled UI checkboxes.
+        This method:
+        1. Clears existing actions from the runner
+        2. Adds new actions based on enabled checkboxes
         """
         if not self.runner:
-            self.logger.warning("Cannot refresh actions: runner not initialized")
             return
-        
+            
         # Clear existing actions
         self.runner.clear_actions()
         
-        # Create screen interaction and add enabled actions
+        # Create screen interaction for production mode
         from gravrokbot.core.screen_interaction import ScreenInteraction
+        screen = ScreenInteraction(self.settings['screen'])
+        
+        # Import action classes here to avoid circular imports
         from gravrokbot.actions.gather_resources import GatherResourcesAction
         from gravrokbot.actions.collect_city_resources import CollectCityResourcesAction
         from gravrokbot.actions.material_production import MaterialProductionAction
@@ -933,17 +945,14 @@ class MainWindow:
         from gravrokbot.actions.claim_daily_vip_gifts import ClaimDailyVIPGiftsAction
         from gravrokbot.actions.change_character import ChangeCharacterAction
         
-        # Create screen interaction for production mode
-        screen = ScreenInteraction(self.settings['screen'])
-        
-        # Add actions based on UI settings
+        # Add actions based on UI checkboxes
         if self.action_vars.get("Gather Resources", tk.BooleanVar(value=False)).get():
             gather_action = GatherResourcesAction(screen, self.settings['actions']['gather_resources'])
             self.runner.add_action(gather_action)
             
         if self.action_vars.get("Collect City Resources", tk.BooleanVar(value=False)).get():
-            collect_action = CollectCityResourcesAction(screen, self.settings['actions']['collect_city_resources'])
-            self.runner.add_action(collect_action)
+            city_action = CollectCityResourcesAction(screen, self.settings['actions']['collect_city_resources'])
+            self.runner.add_action(city_action)
             
         if self.action_vars.get("Material Production", tk.BooleanVar(value=False)).get():
             material_action = MaterialProductionAction(screen, self.settings['actions']['material_production'])
@@ -961,16 +970,17 @@ class MainWindow:
             char_action = ChangeCharacterAction(screen, self.settings['actions']['change_character'])
             self.runner.add_action(char_action)
         
-        # Update UI statuses based on action enabled/disabled state
+        # Silently update UI statuses based on action enabled/disabled state
+        # (without adding log entries for each status change)
         for action_name, var in self.action_vars.items():
             if var.get():  # If action is enabled in UI
                 # Only set to "Waiting" if the bot is actually running
                 if self.running:
-                    self.update_action_status(action_name, "Waiting")
+                    self.update_action_status(action_name, "Waiting", log_change=False)
             else:  # If action is disabled in UI
-                self.update_action_status(action_name, "N/A")
+                self.update_action_status(action_name, "N/A", log_change=False)
         
-        self.logger.info("Runner actions refreshed based on enabled actions")
+        self.logger.info("Refresh action list")
         self.add_log("Refresh action list")
         
     def update_action_enabled_states(self):
@@ -1289,7 +1299,7 @@ class MainWindow:
         
         self.add_log(f"Character switched to: {name}")
         
-    def update_action_status(self, action, status):
+    def update_action_status(self, action, status, log_change=True):
         """Update the status of an action with the appropriate color"""
         if action not in self.action_status_labels or status not in self.ACTION_STATUSES:
             return
@@ -1298,8 +1308,9 @@ class MainWindow:
         bootstyle = self.ACTION_STATUSES[status]
         status_label.configure(text=status, bootstyle=bootstyle)
         
-        # Log the status change
-        self.add_log(f"Action '{action}' status changed to: {status}")
+        # Log the status change, but not if the status is "N/A"
+        if log_change and status != "N/A":
+            self.add_log(f"Action '{action}' status changed to: {status}")
         
     def cleanup_and_exit(self):
         """Perform cleanup operations before exiting"""

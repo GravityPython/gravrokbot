@@ -168,8 +168,17 @@ class ActionRunner(BotRunner):
                 self.logger.info(f"Start loop number {self.loop_counter}")
                 self.main_window.add_log(f"Start loop number {self.loop_counter}")
                 
-                # Refresh action list at the start of each loop
+                # Refresh action list at the start of each loop - log added by the refresh method
                 self.main_window.refresh_runner_actions()
+                
+                # Add log message for resetting action statuses to Waiting
+                self.logger.info("Reset actions status to Waiting")
+                self.main_window.add_log("Reset actions status to Waiting")
+                
+                # Set enabled actions to "Waiting" status
+                for action in self.actions:
+                    if action.enabled:
+                        self.main_window.update_action_status(action.name, "Waiting")
                 
                 # Check if it's night sleep time
                 if self._is_night_sleep_time():
@@ -216,9 +225,9 @@ class ActionRunner(BotRunner):
                                 self.logger.info(f"[{end_time}] Testing Action: {action.name} - Completed")
                                 self.main_window.update_action_status(action.name, "Done")
                                 test_executed_count += 1
-                    
+
                     if test_executed_count == 0 and self.running and not self.interrupt_requested:
-                         self.logger.info("No enabled actions to test in this cycle.")
+                        self.logger.info("No enabled actions to test in this cycle.")
 
                 else:
                     # Normal Mode: Execute enabled actions that are not on cooldown
@@ -266,13 +275,9 @@ class ActionRunner(BotRunner):
                 if self._interruptible_sleep(self.refresh_rate_seconds):
                     self.logger.info("Wait between cycles interrupted")
                     break
-                    
-                # Reset action statuses for next cycle if still running
-                if self.running and not self.interrupt_requested:
-                    # Update status for enabled actions to "Waiting"
-                    for action in self.actions:
-                        if action.enabled:
-                            self.main_window.update_action_status(action.name, "Waiting")
+                
+                # Just continue to the next loop without updating statuses here
+                
         except Exception as e:
             self.logger.error(f"Error in action runner loop: {e}")
         finally:

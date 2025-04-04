@@ -16,7 +16,7 @@
         },
         "test_mode": {
             "enabled": true,
-            "dummy_execution_seconds": 15
+            "dummy_execution_seconds": 10
         }
     },
     "screen": {

@@ -103,8 +103,17 @@ class TestRunner(BotRunner):
                 self.logger.info(f"Start loop number {self.loop_counter}")
                 self.main_window.add_log(f"Start loop number {self.loop_counter}")
                 
-                # Refresh action list at the start of each loop
+                # Refresh action list at the start of each loop - log added by the refresh method
                 self.main_window.refresh_runner_actions()
+                
+                # Add log message for resetting action statuses to Waiting
+                self.logger.info("Reset actions status to Waiting")
+                self.main_window.add_log("Reset actions status to Waiting")
+                
+                # Set enabled actions to "Waiting" status
+                for action in self.actions:
+                    if action.enabled:
+                        self.main_window.update_action_status(action.name, "Waiting")
                 
                 # Test Mode: Simulate execution without cooldowns or real execution
                 self.logger.info("--- Test Mode Cycle ---")
@@ -157,13 +166,6 @@ class TestRunner(BotRunner):
                 self.logger.info(f"Completed loop number {self.loop_counter}")
                 self.main_window.add_log(f"Completed loop number {self.loop_counter}")
                 
-                # Reset action statuses for next cycle if still running
-                if self.running and not self.interrupt_requested:
-                    # Update status for enabled actions to "Waiting"
-                    for action in self.actions:
-                        if action.enabled:
-                            self.main_window.update_action_status(action.name, "Waiting")
-                
                 # Check if we should continue running
                 if not self.continuous_running:
                     self.logger.info("Continuous running disabled, stopping after one cycle")
@@ -175,6 +177,8 @@ class TestRunner(BotRunner):
                 if self._interruptible_sleep(self.refresh_rate):
                     self.logger.info("Wait between cycles interrupted")
                     break
+                
+                # Just continue to the next loop without updating statuses here
                 
         except Exception as e:
             self.logger.error(f"Error in test runner loop: {e}")
